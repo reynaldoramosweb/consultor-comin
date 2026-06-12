@@ -1,7 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 const SYSTEM_PROMPT = `Eres un Consultor Virtual de Marketing Digital de Digital Comin. Tu misión es hacer un Diagnóstico Digital Gratuito mediante conversación natural y consultiva.
 
 REGLAS ESTRICTAS:
@@ -37,17 +33,27 @@ export async function POST(request) {
   try {
     const { messages } = await request.json();
 
-    const response = await client.messages.create({
-      model: "claude-opus-4-5",
-      max_tokens: 1000,
-      system: SYSTEM_PROMPT,
-      messages,
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-3.3-8b-instruct:free",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          ...messages
+        ],
+        max_tokens: 1000
+      })
     });
 
-    const reply = response.content?.find((b) => b.type === "text")?.text || "";
+    const data = await response.json();
+    const reply = data.choices?.[0]?.message?.content || "No pude procesar eso. ¿Podés intentar de nuevo?";
     return Response.json({ reply });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: "Error interno" }, { status: 500 });
+    console.error("ERROR:", error.message);
+    return Response.json({ error: error.message }, { status: 500 });
   }
 }
