@@ -33,33 +33,31 @@ export async function POST(request) {
   try {
     const { messages } = await request.json();
 
-    // Filtrar solo user/assistant alternados y asegurar que empiece con user
-    const filtered = messages.filter(m => m.role === "user" || m.role === "assistant");
-    const firstUserIndex = filtered.findIndex(m => m.role === "user");
-    const cleanMessages = firstUserIndex >= 0 ? filtered.slice(firstUserIndex) : filtered;
+    const firstUserIndex = messages.findIndex(m => m.role === "user");
+    const cleanMessages = firstUserIndex >= 0 ? messages.slice(firstUserIndex) : messages;
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://consultor-comin.vercel.app",
-        "X-Title": "Consultor Digital Comin"
-      },
-      body: JSON.stringify({
-        model: "mistralai/mistral-7b-instruct:free",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...cleanMessages
-        ],
-        max_tokens: 1000
-      })
-    });
+    const contents = cleanMessages.map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents,
+          generationConfig: { maxOutputTokens: 1000 }
+        })
+      }
+    );
 
     const data = await response.json();
-    console.log("OpenRouter response:", JSON.stringify(data));
-    
-    const reply = data.choices?.[0]?.message?.content || "No pude procesar eso. ¿Podés intentar de nuevo?";
+    console.log("Gemini response:", JSON.stringify(data));
+
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar eso. ¿Podés intentar de nuevo?";
     return Response.json({ reply });
   } catch (error) {
     console.error("ERROR:", error.message);
