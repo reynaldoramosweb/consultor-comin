@@ -33,23 +33,32 @@ export async function POST(request) {
   try {
     const { messages } = await request.json();
 
+    // Filtrar solo user/assistant alternados y asegurar que empiece con user
+    const filtered = messages.filter(m => m.role === "user" || m.role === "assistant");
+    const firstUserIndex = filtered.findIndex(m => m.role === "user");
+    const cleanMessages = firstUserIndex >= 0 ? filtered.slice(firstUserIndex) : filtered;
+
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://consultor-comin.vercel.app",
+        "X-Title": "Consultor Digital Comin"
       },
       body: JSON.stringify({
         model: "meta-llama/llama-3.3-8b-instruct:free",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          ...messages
+          ...cleanMessages
         ],
         max_tokens: 1000
       })
     });
 
     const data = await response.json();
+    console.log("OpenRouter response:", JSON.stringify(data));
+    
     const reply = data.choices?.[0]?.message?.content || "No pude procesar eso. ¿Podés intentar de nuevo?";
     return Response.json({ reply });
   } catch (error) {
